@@ -85,7 +85,7 @@ try {
   log('start agent');
   const sock = join(work, 'agent.sock');
   agent = run(bin, [
-    '-listen', `127.0.0.1:${API_PORT}`, '-socket', sock, '-config', join(work, 'config.json'),
+    '-mode', 'serve', '-listen', `127.0.0.1:${API_PORT}`, '-socket', sock, '-config', join(work, 'config.json'),
     '-public-url', `http://127.0.0.1:${API_PORT}`, '-web-url', webURL, '-name', 'ui-test-pc', '-timeout', '20s',
   ]);
   cleanups.push(() => agent.proc.kill());

@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/tksugimoto-ai/pocket-ssh-agent/internal/qrterm"
 	"github.com/tksugimoto-ai/pocket-ssh-agent/internal/sshagent"
 	"github.com/tksugimoto-ai/pocket-ssh-agent/internal/tailscale"
+	"github.com/tksugimoto-ai/pocket-ssh-agent/internal/tsnode"
 )
 
 var version = "dev"
@@ -33,6 +35,10 @@ var version = "dev"
 const defaultWebURL = "https://tksugimoto-ai.github.io/pocket-ssh-agent/"
 
 type options struct {
+	mode       string
+	tsHostname string
+	tsDir      string
+	verbose    bool
 	listenAddr string
 	socket     string
 	configPath string
@@ -55,10 +61,14 @@ func main() {
 
 	var o options
 	fs := flag.NewFlagSet("pocket-ssh-agent", flag.ExitOnError)
-	fs.StringVar(&o.listenAddr, "listen", "127.0.0.1:7766", "loopback address for the phone API (expose it with `tailscale serve`)")
+	fs.StringVar(&o.mode, "mode", "tsnet", "how the phone reaches this PC: \"tsnet\" (the agent joins the tailnet itself) or \"serve\" (loopback API exposed with `tailscale serve`)")
+	fs.StringVar(&o.tsHostname, "ts-hostname", tsnode.DefaultHostname(), "tsnet mode: name of the agent's node in the tailnet")
+	fs.StringVar(&o.tsDir, "ts-dir", "", "tsnet mode: state directory of the agent's node (default: user config dir)")
+	fs.BoolVar(&o.verbose, "v", false, "verbose logs")
+	fs.StringVar(&o.listenAddr, "listen", "127.0.0.1:7766", "serve mode: loopback address for the phone API")
 	fs.StringVar(&o.socket, "socket", listen.DefaultPath(), "SSH agent socket (named pipe on Windows)")
 	fs.StringVar(&o.configPath, "config", "", "configuration file (default: user config dir)")
-	fs.StringVar(&o.publicURL, "public-url", "", "URL the phone uses to reach this PC (default: https://<MagicDNS name>:<listen port>)")
+	fs.StringVar(&o.publicURL, "public-url", "", "URL the phone uses to reach this PC (default: detected from Tailscale)")
 	fs.StringVar(&o.webURL, "web-url", defaultWebURL, "URL of the phone PWA")
 	fs.StringVar(&o.name, "name", "", "name of this PC shown on the phone (default: hostname)")
 	fs.DurationVar(&o.timeout, "timeout", 90*time.Second, "how long to wait for approval")
@@ -118,6 +128,9 @@ func run(o options) error {
 	if o.name == "" {
 		o.name, _ = os.Hostname()
 	}
+	if o.mode != "tsnet" && o.mode != "serve" {
+		return fmt.Errorf("-mode must be \"tsnet\" or \"serve\", got %q", o.mode)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -135,13 +148,22 @@ func run(o options) error {
 		},
 	}
 
-	hl, err := net.Listen("tcp", o.listenAddr)
+	// The SSH agent socket comes up first so that clients get a clear
+	// "not paired" answer even while the tailnet login is pending.
+	al, err := listen.Listen(o.socket)
+	if err != nil {
+		return fmt.Errorf("agent socket: %w", err)
+	}
+	defer al.Close()
+	ag := &sshagent.Agent{Store: store, Broker: b, Timeout: o.timeout, Log: logger}
+	go serveAgent(al, ag)
+
+	log.Printf("pocket-ssh-agent %s", version)
+	log.Printf("SSH agent:  %s", o.socket)
+
+	hl, public, err := phoneListener(ctx, o)
 	if err != nil {
 		return err
-	}
-	if !isLoopback(hl.Addr()) {
-		hl.Close()
-		return fmt.Errorf("-listen must be a loopback address, got %s", o.listenAddr)
 	}
 	srv := &http.Server{Handler: api.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
@@ -150,20 +172,10 @@ func run(o options) error {
 			stop()
 		}
 	}()
-
-	al, err := listen.Listen(o.socket)
-	if err != nil {
-		return fmt.Errorf("agent socket: %w", err)
-	}
-	ag := &sshagent.Agent{Store: store, Broker: b, Timeout: o.timeout, Log: logger}
-	go serveAgent(al, ag)
-
-	log.Printf("pocket-ssh-agent %s", version)
-	log.Printf("SSH agent:  %s", o.socket)
-	log.Printf("Phone API:  http://%s", hl.Addr())
+	log.Printf("Phone API:  %s", public)
 
 	if p, _ := store.Pairing(); p == nil || o.pair {
-		if err := startPairing(ctx, api, o, hl.Addr()); err != nil {
+		if err := startPairing(api, o, public); err != nil {
 			log.Printf("pairing: %v", err)
 		}
 	} else {
@@ -172,7 +184,6 @@ func run(o options) error {
 
 	<-ctx.Done()
 	log.Printf("shutting down")
-	al.Close()
 	sctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	return srv.Shutdown(sctx)
@@ -203,18 +214,57 @@ func origin(u *url.URL) string {
 	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(host)
 }
 
-func startPairing(ctx context.Context, api *httpapi.Server, o options, addr net.Addr) error {
+// phoneListener returns the listener for the phone API and the URL the
+// phone uses to reach it.
+func phoneListener(ctx context.Context, o options) (net.Listener, string, error) {
+	if o.mode == "tsnet" {
+		dir := o.tsDir
+		if dir == "" {
+			cfg, err := os.UserConfigDir()
+			if err != nil {
+				return nil, "", err
+			}
+			dir = filepath.Join(cfg, "pocket-ssh-agent", "tsnet")
+		}
+		log.Printf("Joining the tailnet as %q (state: %s)...", o.tsHostname, dir)
+		node, ln, err := tsnode.Listen(ctx, tsnode.Options{Hostname: o.tsHostname, Dir: dir, Verbose: o.verbose, Log: log.Default()})
+		if err != nil {
+			return nil, "", fmt.Errorf("tailnet: %w", err)
+		}
+		go func() {
+			<-ctx.Done()
+			node.Close()
+		}()
+		public := node.URL
+		if o.publicURL != "" {
+			public = o.publicURL
+		}
+		return ln, strings.TrimSuffix(public, "/"), nil
+	}
+
+	hl, err := net.Listen("tcp", o.listenAddr)
+	if err != nil {
+		return nil, "", err
+	}
+	if !isLoopback(hl.Addr()) {
+		hl.Close()
+		return nil, "", fmt.Errorf("-listen must be a loopback address, got %s", o.listenAddr)
+	}
+	_, port, _ := net.SplitHostPort(hl.Addr().String())
 	public := o.publicURL
 	if public == "" {
 		name, err := tailscale.DNSName(ctx)
 		if err != nil {
-			return fmt.Errorf("could not detect the Tailscale name (%v); pass -public-url", err)
+			hl.Close()
+			return nil, "", fmt.Errorf("could not detect the Tailscale name (%v); pass -public-url", err)
 		}
-		_, port, _ := net.SplitHostPort(addr.String())
 		public = "https://" + name + ":" + port
+		fmt.Printf("\nExpose the phone API to the tailnet (once):\n\n  tailscale serve --bg --https=%s http://%s\n\n", port, hl.Addr())
 	}
-	public = strings.TrimSuffix(public, "/")
+	return hl, strings.TrimSuffix(public, "/"), nil
+}
 
+func startPairing(api *httpapi.Server, o options, public string) error {
 	code, err := api.StartPairing(o.pairTTL)
 	if err != nil {
 		return err
@@ -222,9 +272,7 @@ func startPairing(ctx context.Context, api *httpapi.Server, o options, addr net.
 	payload, _ := json.Marshal(map[string]any{"v": 1, "url": public, "code": code, "name": o.name})
 	link := o.webURL + "#pair=" + base64.RawURLEncoding.EncodeToString(payload)
 
-	_, port, _ := net.SplitHostPort(addr.String())
-	fmt.Printf("\nMake sure this PC is reachable from the phone over Tailscale, e.g.:\n\n  tailscale serve --bg --https=%s http://%s\n\n", port, addr)
-	fmt.Printf("Scan this QR code with the phone (valid for %s):\n\n", o.pairTTL)
+	fmt.Printf("\nScan this QR code in the Pocket SSH app (valid for %s):\n\n", o.pairTTL)
 	if err := qrterm.Print(os.Stdout, link); err != nil {
 		fmt.Printf("(could not render QR code: %v)\n", err)
 	}

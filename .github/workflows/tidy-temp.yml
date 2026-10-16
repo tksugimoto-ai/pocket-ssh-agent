@@ -1,0 +1,29 @@
+# Temporary: resolves go.sum for the tsnet dependency (deleted afterwards).
+name: tidy-temp
+on:
+  push:
+    branches: [tidy-gosum]
+permissions:
+  contents: write
+jobs:
+  tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          check-latest: true
+      - run: |
+          go version
+          go mod tidy
+          go mod verify
+          go mod vendor
+          go build ./...
+          GOOS=windows go build ./...
+          du -sh vendor
+          git config user.name github-actions
+          git config user.email github-actions@users.noreply.github.com
+          git add go.mod go.sum vendor
+          git commit -q -m "tidy (temporary)"
+          git push origin HEAD:tidy-gosum

@@ -43,7 +43,7 @@ go build -o "$WORK/pocket-ssh-agent" ./cmd/pocket-ssh-agent
 echo "== start agent"
 SOCK="$WORK/agent.sock"
 "$WORK/pocket-ssh-agent" \
-  -listen "127.0.0.1:$API_PORT" -socket "$SOCK" -config "$WORK/config.json" \
+  -mode serve -listen "127.0.0.1:$API_PORT" -socket "$SOCK" -config "$WORK/config.json" \
   -public-url "http://127.0.0.1:$API_PORT" -web-url "https://localhost/" \
   -name e2e-pc -timeout 20s >"$WORK/agent.log" 2>&1 &
 PIDS+=($!)
