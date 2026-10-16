@@ -48,7 +48,7 @@ PWA は PC ではなく GitHub Pages から配信します。PC から配信す�
 
 ### 1. PC で agent を起動
 
-[Releases](https://github.com/tksugimoto-ai/pocket-ssh-agent/releases) から OS に合ったバイナリをダウンロードします（Go がある場合は `go install github.com/tksugimoto-ai/pocket-ssh-agent/cmd/pocket-ssh-agent@latest` でも可）。
+[Releases](https://github.com/tksugimoto-ai/pocket-ssh-agent/releases) から OS に合ったバイナリをダウンロードします（Go 1.26 以降がある場合は `go install github.com/tksugimoto-ai/pocket-ssh-agent/cmd/pocket-ssh-agent@latest` でも可）。
 
 ```powershell
 pocket-ssh-agent
