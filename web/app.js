@@ -7,6 +7,7 @@ import {
   FormatError, authorizedKey, b64decode, b64encode, b64urlDecode, fingerprint, keyType, parseSignData, publicKeyBlob,
 } from './lib/sshwire.js';
 import * as store from './lib/store.js';
+import { visible } from './lib/text.js';
 
 const PAIRING = 'pairing';
 const POLL_WAIT_S = 25;
@@ -128,7 +129,7 @@ function renderPairConfirm() {
   const p = state.pendingPair;
   const host = new URL(p.url).host;
   $('pair-host').textContent = host;
-  $('pair-name').textContent = p.name || '(なし)';
+  $('pair-name').textContent = p.name ? visible(p.name) : '(なし)';
   $('pair-not-tailnet').hidden = p.isTailnet;
   $('pair-ok').disabled = false;
 }
@@ -328,11 +329,12 @@ async function updateRequests(list) {
   renderRequests();
 }
 
-function addRow(dl, label, value, badge) {
+function addRow(dl, label, value, badge, cls) {
   const dt = document.createElement('dt');
   dt.textContent = label;
   const dd = document.createElement('dd');
   dd.textContent = value;
+  if (cls) dd.className = cls;
   if (badge) {
     const b = document.createElement('span');
     b.className = `badge ${badge.cls || ''}`;
@@ -354,18 +356,21 @@ function buildCard(vm) {
     node.querySelector('.approve').hidden = true;
   } else if (vm.parsed.kind === 'ssh-userauth') {
     node.querySelector('.request-title').textContent = 'SSH ログイン';
-    addRow(dl, 'ユーザー', vm.parsed.user);
-    if (vm.host) {
-      addRow(dl, '接続先', vm.host.name || '未登録のサーバー', vm.host.trusted
-        ? { text: '署名で確認済み', cls: 'trusted' }
-        : { text: 'PC の申告' });
+    addRow(dl, 'ユーザー', visible(vm.parsed.user));
+    if (vm.host?.trusted) {
+      addRow(dl, '接続先', vm.host.name || '未登録のサーバー', { text: '署名で確認済み', cls: 'trusted' });
+      addRow(dl, 'ホスト鍵', vm.host.fp);
+    } else if (vm.host) {
+      // Only the PC says so; a compromised PC can claim any server. Make it
+      // look clearly different from a verified host.
+      addRow(dl, '接続先', `${vm.host.name || '未登録のサーバー'}（未確認）`, { text: 'PC の申告' }, 'claimed');
       addRow(dl, 'ホスト鍵', vm.host.fp);
     } else {
       addRow(dl, '接続先', '不明（SSH クライアントが通知していません）');
     }
   } else {
     node.querySelector('.request-title').textContent = vm.parsed.namespace === 'git' ? 'Git 署名' : 'SSH 署名';
-    addRow(dl, '用途', vm.parsed.namespace === 'git' ? 'コミット／タグへの署名' : `名前空間 "${vm.parsed.namespace}"`);
+    addRow(dl, '用途', vm.parsed.namespace === 'git' ? 'コミット／タグへの署名' : `名前空間 "${visible(vm.parsed.namespace)}"`);
   }
   if (vm.forwarded) {
     const w = node.querySelector('.request-forwarded');

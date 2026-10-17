@@ -117,3 +117,12 @@ test('protocol MACs match the Go implementation', async () => {
   assert.equal(await verifyPairProof('other', { secret: 'sec', pcName: 'pc', proof }, 'ssh-ed25519 AAA'), false);
   assert.equal(await verifyPairProof('code', { secret: 'sec', pcName: 'evil', proof }, 'ssh-ed25519 AAA'), false);
 });
+
+test('visible escapes control and bidi characters', async () => {
+  const { visible } = await import('../lib/text.js');
+  assert.equal(visible('git'), 'git');
+  assert.equal(visible('ユーザー'), 'ユーザー');
+  assert.equal(visible('ad\u202Enimg'), 'ad\\u{202E}nimg');
+  assert.equal(visible('a\x1b[2Jb\n'), 'a\\u{1B}[2Jb\\u{A}');
+  assert.equal(visible('a\u200Bb'), 'a\\u{200B}b');
+});

@@ -107,6 +107,7 @@ code { padding: 1px 5px; border-radius: 6px; background: var(--bg); border: 1px 
   vertical-align: 1px;
 }
 .badge.trusted { color: var(--ok); border-color: var(--ok); }
+.kv dd.claimed { color: var(--muted); font-style: italic; }
 
 .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 .actions.column { flex-direction: column; }
