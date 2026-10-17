@@ -486,8 +486,13 @@ func TestPairingValidation(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("non-ed25519 key: %d", resp.StatusCode)
 	}
-	resp, body := e.do("POST", "/v1/pair", map[string]string{"code": code, "publicKey": key}, reqOpts{noAuth: true})
+	resp, body := e.do("POST", "/v1/pair", map[string]string{"code": code, "publicKey": key, "deviceName": "\x1b[31mi\u202ePhone\n"}, reqOpts{noAuth: true})
 	if resp.StatusCode != 200 {
 		t.Fatalf("pairing after wrong guesses failed: %d %s", resp.StatusCode, body)
+	}
+	// The device name ends up in terminals (ssh-add -l), so control
+	// characters are dropped.
+	if p, _ := e.api.Store.Pairing(); p.DeviceName != "[31miPhone" {
+		t.Fatalf("device name not sanitized: %q", p.DeviceName)
 	}
 }

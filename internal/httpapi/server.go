@@ -46,6 +46,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"golang.org/x/crypto/ssh"
 
@@ -276,7 +277,7 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 	p := &config.Pairing{
 		PublicKey:  strings.TrimSpace(string(ssh.MarshalAuthorizedKey(pub))),
 		Secret:     secret,
-		DeviceName: truncate(req.DeviceName, 64),
+		DeviceName: printable(truncate(req.DeviceName, 64)),
 		PairedAt:   time.Now().UTC(),
 	}
 	if err := s.Store.SetPairing(p); err != nil {
@@ -452,6 +453,18 @@ func writeError(w http.ResponseWriter, status int, code, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg, "code": code})
+}
+
+// printable drops control and other non-printable characters (escape
+// sequences, bidi overrides), since the device name ends up in terminals,
+// e.g. in the key comment shown by "ssh-add -l".
+func printable(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsPrint(r) {
+			return r
+		}
+		return -1
+	}, s)
 }
 
 func truncate(s string, n int) string {
