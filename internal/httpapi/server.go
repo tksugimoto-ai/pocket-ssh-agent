@@ -264,7 +264,10 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "bad_key", "publicKey must be an ssh-ed25519 key")
 		return
 	}
-	if !s.consumePairingCode(req.Code) {
+	if ok, expired := s.consumePairingCode(req.Code); !ok {
+		if expired {
+			s.logf("pairing failed: the pairing code has expired; restart the agent with -pair for a new one")
+		}
 		writeError(w, http.StatusForbidden, "bad_code", "invalid or expired pairing code")
 		return
 	}
@@ -296,17 +299,21 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 // consumePairingCode checks code against the active pairing code. A correct
 // code is single-use. The code has 128 bits of entropy, so wrong guesses
 // are not rate limited (which would only let others cancel pairing).
-func (s *Server) consumePairingCode(code string) bool {
+// expired reports that a pairing code was issued but is no longer valid.
+func (s *Server) consumePairingCode(code string) (ok, expired bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.pairCode == "" || time.Now().After(s.pairExpires) {
-		return false
+	if s.pairCode == "" {
+		return false, false
+	}
+	if time.Now().After(s.pairExpires) {
+		return false, true
 	}
 	if subtle.ConstantTimeCompare([]byte(code), []byte(s.pairCode)) != 1 {
-		return false
+		return false, false
 	}
 	s.pairCode = ""
-	return true
+	return true, false
 }
 
 type wireRequest struct {

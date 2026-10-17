@@ -496,3 +496,13 @@ func TestPairingValidation(t *testing.T) {
 		t.Fatalf("device name not sanitized: %q", p.DeviceName)
 	}
 }
+
+func TestExpiredPairingCode(t *testing.T) {
+	e := newEnv(t)
+	code, _ := e.api.StartPairing(-time.Second)
+	key := string(ssh.MarshalAuthorizedKey(e.sshPub))
+	resp, _ := e.do("POST", "/v1/pair", map[string]string{"code": code, "publicKey": key}, reqOpts{noAuth: true})
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expired code: %d", resp.StatusCode)
+	}
+}

@@ -325,7 +325,7 @@ func startPairing(api *httpapi.Server, o options, public string) error {
 	payload, _ := json.Marshal(map[string]any{"v": 1, "url": public, "code": code, "name": o.name})
 	link := o.webURL + "#pair=" + base64.RawURLEncoding.EncodeToString(payload)
 
-	fmt.Printf("\nScan this QR code in the Pocket SSH app (valid for %s):\n\n", o.pairTTL)
+	fmt.Printf("\nScan this QR code in the Pocket SSH app (valid for %s; if it expires or pairing fails, restart the agent with -pair):\n\n", o.pairTTL)
 	if err := qrterm.Print(os.Stdout, link); err != nil {
 		fmt.Printf("(could not render QR code: %v)\n", err)
 	}
