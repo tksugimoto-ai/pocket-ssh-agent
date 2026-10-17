@@ -177,7 +177,15 @@ func run(o options) error {
 	if err != nil {
 		return err
 	}
-	srv := &http.Server{Handler: api.Handler(), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{
+		Handler:           api.Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+		// Bodies are at most 16 KiB; a client trickling one in must not
+		// hold the connection open. Writes cover the 25 s long poll.
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 45 * time.Second,
+		IdleTimeout:  2 * time.Minute,
+	}
 	go func() {
 		if err := srv.Serve(hl); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("http: %v", err)
