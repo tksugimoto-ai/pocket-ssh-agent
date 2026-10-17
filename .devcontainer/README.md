@@ -25,7 +25,14 @@ git submodule update --init
 
 ```bash
 git submodule update --remote .devcontainer/my-devcontainer
-cp .devcontainer/my-devcontainer/.devcontainer/devcontainer-lock.json .devcontainer/
 ```
 
-`cp` で上書きすると Go の Feature のエントリが消えるので、lock を更新したあとに Go の分を戻してください。
+`devcontainer-lock.json` は Dev Container のビルド (VS Code の Rebuild や `devcontainer up`) のたびに
+`devcontainer.json` に合わせて書き直されます。Feature を足す・外すとエントリも自動で増減するので、
+再作成後に差分が出ていればそのままコミットしてください。
+
+ロック済みの Feature のバージョンは再作成しても上がりません。上げるときは次を実行してコミットします。
+
+```bash
+npx @devcontainers/cli upgrade --workspace-folder .
+```
