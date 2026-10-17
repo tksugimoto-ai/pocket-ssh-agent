@@ -79,6 +79,7 @@ agent は、ペアリング用 QR のリンク先と、受け付けるブラウ�
 ### 1. PC で agent を起動
 
 [Releases](https://github.com/tksugimoto/pocket-ssh-agent/releases) から OS に合ったバイナリをダウンロードします（Go 1.27 以降がある場合は `go install github.com/tksugimoto/pocket-ssh-agent/cmd/pocket-ssh-agent@latest`、Docker なら後述の「開発」の方法でも可）。
+Releases のバイナリにはビルドの来歴証明が付いているので、`gh attestation verify <ファイル> --repo tksugimoto/pocket-ssh-agent` でこのリポジトリの GitHub Actions がビルドしたものか確認できます。
 
 ```powershell
 pocket-ssh-agent -web-url https://<PWA の URL>/   # -web-url は初回のみ
