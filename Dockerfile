@@ -9,12 +9,10 @@
 # The agent itself runs on the host (it needs the host's named pipe or
 # socket); Docker is only used to build it.
 
-ARG GO_VERSION=1.27
-ARG NODE_VERSION=22
+# Base images are pinned by digest (updated by Dependabot).
+FROM node:22-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS node
 
-FROM node:${NODE_VERSION}-slim AS node
-
-FROM golang:${GO_VERSION} AS base
+FROM golang:1.27@sha256:820153096fda4de6ac1b7194d12e416b7dd8f4e9a33d17e0345b111b945162d8 AS base
 WORKDIR /src
 ENV CGO_ENABLED=0
 COPY go.mod go.sum ./
