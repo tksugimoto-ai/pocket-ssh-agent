@@ -23,6 +23,7 @@ const state = {
   pairing: null, // {url, macKey, pcName, pairedAt}
   pendingPair: null, // parsed pairing link awaiting confirmation
   requests: new Map(), // id -> view model, in arrival order
+  ignored: new Set(), // IDs of requests dropped for a bad MAC
   armedAt: 0,
   serverOffsetMs: 0,
   polling: false,
@@ -146,6 +147,7 @@ async function confirmPair() {
     stopPolling();
     state.pairing = { url: p.url, macKey, pcName: res.pcName || p.name, pairedAt: new Date().toISOString() };
     state.requests.clear();
+    state.ignored.clear();
     await store.set(PAIRING, state.pairing);
     state.pendingPair = null;
     navigator.storage?.persist?.().catch(() => {});
@@ -224,7 +226,7 @@ async function startPolling() {
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; ac.abort(); }, POLL_TIMEOUT_MS);
     try {
-      const res = await client().requests({ wait: POLL_WAIT_S, known: [...state.requests.keys()], signal: ac.signal });
+      const res = await client().requests({ wait: POLL_WAIT_S, known: [...state.requests.keys(), ...state.ignored], signal: ac.signal });
       state.serverOffsetMs = Date.parse(res.serverTime) - Date.now();
       await updateRequests(res.requests);
       setConn('ok', '接続済み');
@@ -294,6 +296,9 @@ async function toViewModel(r) {
 
 async function updateRequests(list) {
   const ids = new Set(list.map((r) => r.id));
+  for (const id of state.ignored) {
+    if (!ids.has(id)) state.ignored.delete(id);
+  }
   let changed = false;
   for (const id of state.requests.keys()) {
     if (!ids.has(id)) {
@@ -302,11 +307,14 @@ async function updateRequests(list) {
     }
   }
   for (const r of list) {
-    if (state.requests.has(r.id)) continue;
+    if (state.requests.has(r.id) || state.ignored.has(r.id)) continue;
     // Requests must come from the paired agent; anything else (e.g. a
     // process squatting the agent's port) is ignored.
     if (!(await verifyRequest(state.pairing.macKey, r))) {
+      // Remember it so that the long poll still waits instead of returning
+      // immediately because the phone does not "know" this ID.
       console.warn('ignoring request with an invalid MAC', r.id);
+      state.ignored.add(r.id);
       continue;
     }
     state.requests.set(r.id, await toViewModel(r));
@@ -440,6 +448,7 @@ async function unpair() {
   await store.del(PAIRING);
   state.pairing = null;
   state.requests.clear();
+  state.ignored.clear();
   render();
 }
 
