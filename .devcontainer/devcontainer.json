@@ -1,0 +1,31 @@
+// For format details, see https://aka.ms/devcontainer.json.
+// Based on https://github.com/tksugimoto/my-devcontainer (git submodule at ./my-devcontainer).
+{
+	"name": "pocket-ssh-agent",
+	"image": "mcr.microsoft.com/devcontainers/base:trixie",
+
+	"features": {
+		// Latest, like CI (go-version: stable), to satisfy the go directive in go.mod.
+		"ghcr.io/devcontainers/features/go:1": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "24"
+		},
+		"ghcr.io/devcontainers/features/github-cli:1": {},
+		"ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {},
+		"./my-devcontainer/.devcontainer/features/claude-code-bell": {},
+		"./my-devcontainer/.devcontainer/features/claude-code-statusline": {},
+		"./my-devcontainer/.devcontainer/features/claude-config-volume": {},
+		"./my-devcontainer/.devcontainer/features/node-modules-volume": {},
+		// Local copy so the gh token volume is not shared with other projects
+		// that also use my-devcontainer's gh-auth-volume (fixed volume name).
+		"./features/gh-auth-volume": {}
+	},
+
+	// One clock for the whole container: the status line's rate limit reset times
+	// would otherwise disagree with date, git log and npm timestamps.
+	"containerEnv": {
+		"TZ": "Asia/Tokyo"
+	}
+}
