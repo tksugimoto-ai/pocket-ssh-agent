@@ -150,6 +150,13 @@ try {
   await page.waitForSelector('#view-main:not([hidden])');
   assert.equal((await page.textContent('#pubkey')).trim(), pub);
 
+  log('a pairing link does not replace an existing pairing');
+  await page.goto('about:blank');
+  await page.goto(link);
+  await page.waitForSelector('#view-main:not([hidden])');
+  assert.match(await page.textContent('#toast'), /リンクは無視しました/);
+  assert.equal(new URL(page.url()).hash, '', 'pairing secret must be removed from the URL');
+
   assert.deepEqual(pageErrors.map(String), [], 'no errors in the page');
   console.log('PASS');
 } catch (e) {

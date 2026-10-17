@@ -117,9 +117,3 @@ test('protocol MACs match the Go implementation', async () => {
   assert.equal(await verifyPairProof('other', { secret: 'sec', pcName: 'pc', proof }, 'ssh-ed25519 AAA'), false);
   assert.equal(await verifyPairProof('code', { secret: 'sec', pcName: 'evil', proof }, 'ssh-ed25519 AAA'), false);
 });
-
-test('tailnetOf', async () => {
-  const { tailnetOf } = await import('../lib/pairing.js');
-  assert.equal(tailnetOf('pc.tail1234.ts.net'), 'tail1234.ts.net');
-  assert.equal(tailnetOf('localhost'), 'localhost');
-});

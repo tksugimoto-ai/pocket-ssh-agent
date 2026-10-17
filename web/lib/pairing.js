@@ -42,9 +42,3 @@ export function parsePairingLink(text) {
     isTailnet: u.hostname.endsWith('.ts.net'),
   };
 }
-
-/** The tailnet part of a MagicDNS name ("pc.tail1234.ts.net" -> "tail1234.ts.net"). */
-export function tailnetOf(hostname) {
-  const i = hostname.indexOf('.');
-  return i < 0 ? hostname : hostname.slice(i + 1);
-}

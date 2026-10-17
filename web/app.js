@@ -1,7 +1,7 @@
 import { ApiError, Client, pair } from './lib/api.js';
 import { deleteKey, ed25519Supported, loadKey, loadOrCreateKey, sign } from './lib/keys.js';
 import { KNOWN_HOSTS } from './lib/known-hosts.js';
-import { hasPairingFragment, parsePairingLink, tailnetOf } from './lib/pairing.js';
+import { hasPairingFragment, parsePairingLink } from './lib/pairing.js';
 import { importMacKey, verifyPairProof, verifyRequest } from './lib/protocol.js';
 import {
   FormatError, authorizedKey, b64decode, b64encode, b64urlDecode, fingerprint, keyType, parseSignData, publicKeyBlob,
@@ -129,11 +129,6 @@ function renderPairConfirm() {
   $('pair-host').textContent = host;
   $('pair-name').textContent = p.name || '(なし)';
   $('pair-not-tailnet').hidden = p.isTailnet;
-  const current = state.pairing ? tailnetOf(new URL(state.pairing.url).hostname) : null;
-  const next = tailnetOf(new URL(p.url).hostname);
-  $('pair-other-tailnet').hidden = !(state.pairing && current !== next);
-  $('pair-replace').hidden = !state.pairing;
-  $('pair-replace-name').textContent = state.pairing ? `${state.pairing.pcName}（${new URL(state.pairing.url).host}）` : '';
   $('pair-ok').disabled = false;
 }
 
@@ -512,8 +507,16 @@ async function init() {
   state.key = (await loadKey()) || null;
   const saved = await store.get(PAIRING);
   state.pairing = saved?.macKey ? saved : null;
-  if (link) acceptPairingLink(link);
-  else render();
+  if (link && state.pairing) {
+    // Any web page can link here, so a link must not replace an existing
+    // pairing: re-pairing means unpairing first and scanning in the app.
+    render();
+    toast('すでにペアリング済みのため、リンクは無視しました。ペアリングし直すには、設定で解除してからアプリ内で QR コードを読み取ってください');
+  } else if (link) {
+    acceptPairingLink(link);
+  } else {
+    render();
+  }
 }
 
 init().catch((e) => {
