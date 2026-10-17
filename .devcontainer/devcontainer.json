@@ -5,6 +5,10 @@
 	"image": "mcr.microsoft.com/devcontainers/base:trixie",
 
 	"features": {
+		// Latest, like CI (go-version: stable), to satisfy the go directive in go.mod.
+		"ghcr.io/devcontainers/features/go:1": {
+			"version": "latest"
+		},
 		"ghcr.io/devcontainers/features/node:1": {
 			"version": "24"
 		},
