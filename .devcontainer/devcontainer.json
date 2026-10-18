@@ -18,10 +18,22 @@
 		"./my-devcontainer/.devcontainer/features/claude-code-statusline": {},
 		"./my-devcontainer/.devcontainer/features/claude-config-volume": {},
 		"./my-devcontainer/.devcontainer/features/node-modules-volume": {},
-		// Local copy so the gh token volume is not shared with other projects
-		// that also use my-devcontainer's gh-auth-volume (fixed volume name).
-		"./features/gh-auth-volume": {}
+		"./my-devcontainer/.devcontainer/features/gh-auth-volume": {}
 	},
+
+	// Override the volume names the features declare (see README.md).
+	"mounts": [
+		{
+			"source": "pocket-ssh-agent-claude-config-${devcontainerId}",
+			"target": "/home/vscode/.claude",
+			"type": "volume"
+		},
+		{
+			"source": "pocket-ssh-agent-gh-auth",
+			"target": "/home/vscode/.config/gh",
+			"type": "volume"
+		}
+	],
 
 	// One clock for the whole container: the status line's rate limit reset times
 	// would otherwise disagree with date, git log and npm timestamps.

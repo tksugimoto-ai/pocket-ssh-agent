@@ -5,9 +5,20 @@
 
 - Go (最新) / Node.js 24 / GitHub CLI / Claude Code
 - my-devcontainer のカスタム Feature: `claude-code-bell`, `claude-code-statusline`,
-  `claude-config-volume`, `node-modules-volume`
-- `gh-auth-volume` だけはボリューム名をこのプロジェクト用 (`pocket-ssh-agent-gh-auth`) にするため
-  `.devcontainer/features/gh-auth-volume` にコピーして使っています
+  `claude-config-volume`, `node-modules-volume`, `gh-auth-volume`
+
+### ボリューム名
+
+my-devcontainer の Feature が宣言するボリューム名は、`devcontainer.json` の `mounts` で同じ `target` を指定して
+このプロジェクト用の名前に上書きしています (`mounts` は `target` ごとに後勝ちで、`devcontainer.json` は Feature より後に適用されます)。
+
+| target | Feature の既定 | このプロジェクト |
+|---|---|---|
+| `/home/vscode/.claude` | `claude-config-${devcontainerId}` | `pocket-ssh-agent-claude-config-${devcontainerId}` |
+| `/home/vscode/.config/gh` | `my-devcontainer-gh-auth` | `pocket-ssh-agent-gh-auth` |
+
+`gh-auth-volume` の既定名のままだと、my-devcontainer を使う他のプロジェクトと gh のトークンを共有してしまうためです。
+`pocket-ssh-agent-gh-auth` は固定名なので、このリポジトリの worktree 同士では共有します。
 
 ## 使い方
 
