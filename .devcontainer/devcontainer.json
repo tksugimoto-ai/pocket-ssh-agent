@@ -32,8 +32,20 @@
 			"source": "pocket-ssh-agent-gh-auth",
 			"target": "/home/vscode/.config/gh",
 			"type": "volume"
+		},
+		// State of an agent run inside the container (pairing, tsnet node), kept
+		// across rebuilds so the phone and the tailnet see the same PC (see README.md).
+		{
+			"source": "pocket-ssh-agent-state",
+			"target": "/home/vscode/.config/pocket-ssh-agent",
+			"type": "volume"
 		}
 	],
+	"postCreateCommand": "sudo chown $(id -un):$(id -gn) /home/vscode/.config /home/vscode/.config/pocket-ssh-agent && chmod 700 /home/vscode/.config/pocket-ssh-agent",
+
+	// The agent names its tailnet node and itself after the hostname, which is
+	// otherwise a new container ID on every rebuild.
+	"runArgs": ["--hostname=devcontainer"],
 
 	// One clock for the whole container: the status line's rate limit reset times
 	// would otherwise disagree with date, git log and npm timestamps.
